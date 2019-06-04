@@ -1,0 +1,180 @@
+#!/usr/bin/env python
+# -*- mode: python -*-
+
+import csv
+import hashlib
+import sys
+import os
+import argparse
+
+
+def parse_arguments(args):
+    parser = argparse.ArgumentParser()
+    parser._action_groups.pop()
+    required = parser.add_argument_group('required arguments')
+    required.add_argument('-i', '--import_md5', required=True, type=str, help="Import md5 file of the specified SNPE version")
+    parser.add_argument('-s', '--search', type=str, help="Search the matching SNPE version",
+                        required=False)
+
+    args = parser.parse_args()
+    return args
+
+
+class Dumper(object):
+
+    def dump(self, rows):
+        pass
+
+
+class TerminalDumper(Dumper):
+    def dump(self, rows):
+        pass
+
+
+class CsvDumper(Dumper):
+
+    def __init__(self, path):
+        self.fingerprint_file = os.path.join(path, 'fingerprint.csv')
+
+    def dump(self, rows):
+        with open(self.fingerprint_file, 'w') as f:
+            csv_file = csv.writer(f)
+            for row in rows:
+                csv_file.writerow(row.as_list())
+
+
+class Loader(object):
+
+    def __init__(self, snpe_root=None):
+        self.row_table = LibTable()
+
+
+    def load_table(self, snpe_root):
+        return self.find_files_and_digest(snpe_root)
+
+    def find_files_and_digest(self, snpe_root):
+        fingerprint_host = snpe_root + os.sep + 'fingerprint.csv'
+        table = LibTable()
+        if os.path.exists(fingerprint_host):
+            with open(fingerprint_host, 'r') as f:
+                csv_file = csv.reader(f)
+                for row in csv_file:
+                    if len(row) != 4:
+                        continue
+                    lib_row = LibRow(row[0], row[1], row[2], row[3])
+                    table.add_row(lib_row)
+            return table
+
+        dynamic_link_libs = self._traverse_path_for_files(snpe_root)
+        for path, file in dynamic_link_libs:
+            fingerprint = self.get_fingerprint(os.path.join(path, file))
+            snpe_version = os.path.split(snpe_root)[-1]
+            variant = os.path.split(path)[-1]
+            lib_row = LibRow(snpe_version, variant, file, fingerprint)
+            table.add_row(lib_row)
+
+        return table
+
+    def get_fingerprint(self, file):
+        md5 = hashlib.md5()
+        with open(file, 'rb') as f:
+            while True:
+                chunk = f.read(4096)
+                if not chunk:
+                    break
+                md5.update(chunk)
+
+        fingerprint = md5.hexdigest()
+        return fingerprint
+
+    def _traverse_path_for_files(self, root):
+        '''Traversing the $SNPE_ROOT/lib, except $SNPE_ROOT/lib/python, to get all dynamic link libs
+        :type root: str. path to SNPE root
+        '''
+        path_to_lib = os.path.join(root, 'lib')
+        sub_dirs = os.listdir(path_to_lib)
+        lib_variants = []
+        for dir in sub_dirs:
+            if dir != 'python':
+                lib_variants.append(dir)
+
+        dynamic_link_libs = []
+        for variant in lib_variants:
+            for path, dirs, files in os.walk(os.path.join(path_to_lib, variant)):
+                for file in files:
+                    if file.endswith('.so'):
+                        dynamic_link_libs.append((path, file))
+
+        return dynamic_link_libs
+
+
+class LibRow(object):
+
+    def __init__(self, version=None, variant=None, file_name=None, md5sum=None):
+        self.version = version
+        self.variant = variant
+        self.file_name = file_name
+        self.md5sum = md5sum
+
+    def self_inspect(self):
+        return (self.version is not None
+                and self.variant is not None
+                and self.file_name is not None
+                and self.md5sum is not None)
+
+    def as_list(self):
+        return [self.version, self.variant, self.file_name, self.md5sum]
+
+
+class LibTable(object):
+
+    def __init__(self, rows=None):
+        self.anchor = 0
+        self.rows = []
+        self.table_size = 0
+        self.md5sum_list = []
+        self.rows_map = {}
+        self.add_rows(rows)
+
+    def add_row(self, row):
+        if row.self_inspect() and row.md5sum not in self.md5sum_list:
+            self.md5sum_list.append(row.md5sum)
+            self.rows.append(row)
+            self.rows_map[row.md5sum] = row
+            self.table_size = len(self.rows)
+
+    def add_rows(self, rows):
+        if not rows :
+            return
+        for row in rows:
+            self.add_row(row)
+
+    def fetch_rows(self, size=None):
+        if size > self.table_size or not size:
+            return self.rows[0:]
+
+        end = self.anchor +size
+        begin = self.anchor
+        rows = self.rows[begin: end]
+        self.anchor += size
+        return rows
+
+    def reset_anchor(self):
+        self.anchor = 0
+
+    def dump(self, dumper):
+        dumper.dump(self.rows)
+        for row in self.rows:
+            print(row.as_list())
+        #dumper.dump(self.rows)
+
+def main():
+    loader = Loader()
+    table = loader.load_table('C:\\0A-SNPE\\snpe-1.25.0.287')
+    dumper = CsvDumper('C:\\0A-SNPE\\snpe-1.25.0.287')
+    table.dump(dumper)
+
+if __name__ == '__main__':
+    main()
+
+
