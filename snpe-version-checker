@@ -27,9 +27,36 @@ class Dumper(object):
 
 
 class TerminalDumper(Dumper):
-    def dump(self, rows):
-        pass
 
+    def __init__(self):
+        self.headers = ['SNPE Version', 'Variant', 'File Name', 'Fingerprint']
+        self.col_size = [len(x) + 1 for x in self.headers]
+
+    def dump(self, rows):
+        self._calc_col_size(rows)
+
+        total_size = self.col_size[0] + self.col_size[1] + self.col_size[2] + self.col_size[3] + 4 + 4
+        print('-' * total_size)
+        for row in rows:
+            self._print_row(row.as_list(), self.col_size)
+            print('-' * total_size)
+
+
+    def _calc_col_size(self, rows):
+        for row in rows:
+            self.col_size[0] = max(self.col_size[0], len(row.version) + 1)
+            self.col_size[1] = max(self.col_size[1], len(row.variant) + 1)
+            self.col_size[2] = max(self.col_size[2], len(row.file_name) + 1)
+            self.col_size[3] = max(self.col_size[3], len(row.fingerprint) + 1)
+
+
+
+    def _print_row(self, values, col_sizes):
+        str = '| '
+        for value, size in zip(values, col_sizes):
+            str += '{0:<{1}}|'.format(value, size) + ' '
+        str = str[:-1]
+        print(str)
 
 class CsvDumper(Dumper):
 
@@ -110,20 +137,20 @@ class Loader(object):
 
 class LibRow(object):
 
-    def __init__(self, version=None, variant=None, file_name=None, md5sum=None):
+    def __init__(self, version=None, variant=None, file_name=None, fingerprint=None):
         self.version = version
         self.variant = variant
         self.file_name = file_name
-        self.md5sum = md5sum
+        self.fingerprint = fingerprint
 
     def self_inspect(self):
         return (self.version is not None
                 and self.variant is not None
                 and self.file_name is not None
-                and self.md5sum is not None)
+                and self.fingerprint is not None)
 
     def as_list(self):
-        return [self.version, self.variant, self.file_name, self.md5sum]
+        return [self.version, self.variant, self.file_name, self.fingerprint]
 
 
 class LibTable(object):
@@ -137,10 +164,10 @@ class LibTable(object):
         self.add_rows(rows)
 
     def add_row(self, row):
-        if row.self_inspect() and row.md5sum not in self.md5sum_list:
-            self.md5sum_list.append(row.md5sum)
+        if row.self_inspect() and row.fingerprint not in self.md5sum_list:
+            self.md5sum_list.append(row.fingerprint)
             self.rows.append(row)
-            self.rows_map[row.md5sum] = row
+            self.rows_map[row.fingerprint] = row
             self.table_size = len(self.rows)
 
     def add_rows(self, rows):
@@ -164,14 +191,13 @@ class LibTable(object):
 
     def dump(self, dumper):
         dumper.dump(self.rows)
-        for row in self.rows:
-            print(row.as_list())
-        #dumper.dump(self.rows)
+        terminal_dump = TerminalDumper()
+        terminal_dump.dump(self.rows)
 
 def main():
     loader = Loader()
-    table = loader.load_table('C:\\0A-SNPE\\snpe-1.25.0.287')
-    dumper = CsvDumper('C:\\0A-SNPE\\snpe-1.25.0.287')
+    table = loader.load_table('/home/chou/Downloads/snpe-1.25.1.310')
+    dumper = CsvDumper('/home/chou/Downloads/snpe-1.25.1.310')
     table.dump(dumper)
 
 if __name__ == '__main__':
