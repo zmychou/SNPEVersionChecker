@@ -18,8 +18,8 @@ save the info inside the tool or separate file.
 format is similar  with the table of dlc info. for example:
 
  
-|SNPE |version|	VARIANT	|file name	|md5sum|  
-| ------ | ------ | ------ | ------ | ---|
+|SNPE version|	VARIANT	|file name	|md5sum|  
+| ------ | ------ | ------ | ---|
 |snpe-1.26.0.343	|aarch64-android-clang6.0|	libSNPE_G.so	|xxxx|
 snpe-1.26.0.343	|dsp|	libsnpe_dsp_v65_domains_v2_skel.so|	xxxx
  
@@ -36,7 +36,7 @@ the tool will search all SNPE related file from the device.
 
 then show a new table.
 
-SNPE |version|	VARIANT|	path	|md5sum
---|--|--|--|--
+SNPE version|	VARIANT|	path	|md5sum
+--|--|--|--
 snpe-1.26.0.343|	aarch64-android-clang6.0	|/system/lib/libSNPE_G.so	|xxxx
 unknown|	unknown	|/vendor/lib/adsp/rfs/libsnpe_dsp_v65_domains_v2_skel.so|	xxxx
