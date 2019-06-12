@@ -9,7 +9,7 @@ import argparse
 import subprocess
 
 
-def parse_arguments(args):
+def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--import_md5', required=False, action='append', type=str,
                           help="Import md5 file of the specified SNPE version")
@@ -153,6 +153,7 @@ class LibRow(object):
 
 
 class LibTable(object):
+    """A container that host LibRow objects"""
 
     def __init__(self, rows=None):
         self.anchor = 0
@@ -163,6 +164,11 @@ class LibTable(object):
         self.add_rows(rows)
 
     def add_row(self, row):
+        """
+        :type row: LibRow
+        :param row:
+        :return:
+        """
         if row.self_inspect() and row.fingerprint not in self.md5sum_list:
             self.md5sum_list.append(row.fingerprint)
             self.rows.append(row)
@@ -170,6 +176,11 @@ class LibTable(object):
             self.table_size = len(self.rows)
 
     def add_rows(self, rows):
+        """
+        :type rows:list(LibRow)
+        :param rows:
+        :return:
+        """
         if not rows :
             return
         for row in rows:
@@ -189,9 +200,13 @@ class LibTable(object):
         self.anchor = 0
 
     def dump(self, dumper):
+        """
+        Save LibRow object info into files or display them on a terminal
+        :type dumper:Dumper
+        :param dumper:
+        :return:
+        """
         dumper.dump(self.rows)
-        terminal_dump = TerminalDumper()
-        terminal_dump.dump(self.rows)
 
 class Device(object):
 
@@ -203,11 +218,14 @@ class Device(object):
         self.ADSP_LIBRARY_PATH = self._get_environ('ADSP_LIBRARY_PATH')
         self.potential_path = ['/system/lib', '/system/lib64', '/vendor/lib', '/vendor/lib64']
         if self.LD_LIBRARY_PATH:
-            self.potential_path.append(self.LD_LIBRARY_PATH)
+            self.potential_path.extend(self.LD_LIBRARY_PATH)
         if self.ADSP_LIBRARY_PATH:
-            self.potential_path.append(self.ADSP_LIBRARY_PATH)
+            self.potential_path.extend(self.ADSP_LIBRARY_PATH)
 
     def search_all_exists(self, targets):
+        """Test which file is exists in an Android device
+        :type targets: list(str)
+        """
         path_to_file_map = {}
         for target in targets:
             for path in self.potential_path:
@@ -218,19 +236,31 @@ class Device(object):
         return path_to_file_map
 
     @staticmethod
+    def ls(dir):
+        cmd = 'adb shell "ls {0}"'.format(dir)
+        output = subprocess.check_output(cmd).decode('utf-8')
+        output = output.split(os.linesep)
+        return output
+
+    @staticmethod
     def join_path(root, *args):
+        """Concatenate the args into a complete file path that is valid in POSIX OS"""
+
         sep = '/'
         path = sep.join(args)
         return root + sep + path
 
     @staticmethod
     def get_fingerprint(file):
+        """Get the md5sum of the given file that in a Android device"""
+
         calc_cmd = 'adb shell "md5sum {0}"'.format(file)
         fingerprint = subprocess.check_output(calc_cmd)
         return fingerprint
 
     @staticmethod
     def _get_default_temp_dir():
+
         if os.name == 'posix':
             return os.path.join(os.environ['HOME'], 'temp4snpe')
         elif os.name == 'nt':
@@ -238,8 +268,12 @@ class Device(object):
 
     @staticmethod
     def _get_environ(name):
+        """Get host environment variables"""
+
         try:
-            return os.environ[name]
+            variables = os.environ[name]
+            sep = ':' if os.name == 'posix' else ';'
+            return variables.split(sep)
         except KeyError:
             print('No variable named {0}.'.format(name))
             return None
@@ -255,6 +289,8 @@ class Device(object):
 
     @staticmethod
     def exists(file):
+        """Check if a given file exist in device"""
+
         test_cmd = 'adb shell "if test -e {0}; then echo yes; fi"'
         test_cmd = test_cmd.format(file)
         exists = subprocess.check_output(test_cmd)
@@ -265,6 +301,8 @@ class Device(object):
 
 
 def validate_path(paths=()):
+    """To see if the given path still valid
+    :type paths: list or tuple, an iterable object"""
     paths = list(paths)
     valid_paths = []
     for path in paths:
@@ -273,45 +311,12 @@ def validate_path(paths=()):
     return list(set(valid_paths))
 
 
-def main():
-
-    libs_cache = 'libs_cache.csv'
-    args = parse_arguments(sys.argv)
-
-    loader = Loader()
-    table = LibTable()
-    cache = []
-    if os.path.exists(libs_cache):
-        with open(libs_cache, 'r') as f:
-            csv_file = csv.reader(f)
-            for line in csv_file:
-                cache.extend(line)
-
-    if args.import_md5:
-        cache.extend(args.import_md5)
-
-    cache = validate_path(cache)
-
-    for md5_lib in cache:
-        tab = loader.load_table(md5_lib)
-        table.add_rows(tab.rows)
-        dumper = CsvDumper(md5_lib)
-        tab.dump(dumper)
-
-    with open(libs_cache, 'w') as f:
-        libs = csv.writer(f)
-        libs.writerow(cache)
-
-    if args.search:
-        targets = set()
-        for row in table.rows:
-            targets.add(row.file_name)
-        dev = Device()
-        exists_map = dev.search_all_exists(targets)
-        recognized_table = recognizer(table, exists_map)
-
-
 def recognizer(database, candidates):
+    """Use file's md5sum as id to identify those libs sit in device belong to which SNPE version
+
+    :type database: LibTable
+    :type candidates: map(file_name_with_path, file_name)
+    """
 
     table = LibTable()
     for absolute_path, file in candidates.items():
@@ -326,12 +331,52 @@ def recognizer(database, candidates):
     return table
 
 
-def test():
-    print(Device._get_environ('LD_LIBRARY_PATH'))
+def main():
+
+    libs_cache = 'libs_cache.csv'
+    args = parse_arguments()
+
+    loader = Loader()
+    table = LibTable()
+    cache = []
+    if os.path.exists(libs_cache):
+        with open(libs_cache, 'r') as f:
+            csv_file = csv.reader(f)
+            for line in csv_file:
+                cache.extend(line)
+
+    if args.import_md5:
+        cache.extend(args.import_md5)
+
+    cache = validate_path(cache)
+    if len(cache) == 0:
+        print('Didn\'t supply any SNPE version for reference, see -h for usage guide.')
+        return
+
+    for md5_lib in cache:
+        tab = loader.load_table(md5_lib)
+        table.add_rows(tab.rows)
+        csv_dumper = CsvDumper(md5_lib)
+        tab.dump(csv_dumper)
+    terminal_dumper = TerminalDumper()
+    table.dump(terminal_dumper)
+
+    with open(libs_cache, 'w') as f:
+        libs = csv.writer(f)
+        libs.writerow(cache)
+
+    print("Starting to matching libs's version, this may take a while...")
+    if args.search:
+        targets = set()
+        for row in table.rows:
+            targets.add(row.file_name)
+        dev = Device()
+        exists_map = dev.search_all_exists(targets)
+        recognized_table = recognizer(table, exists_map)
+        recognized_table.dump(terminal_dumper)
 
 
 if __name__ == '__main__':
-    #test()
     main()
 
 
