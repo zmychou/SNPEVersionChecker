@@ -13,7 +13,13 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--import_md5', required=False, action='append', type=str,
                           help="Import md5 file of the specified SNPE version")
-    parser.add_argument('-s', '--search',  action='store_true', help="Search the matching SNPE version",
+    parser.add_argument('-s', '--search',  action='store_true', help=("Search the matching SNPE version \n "
+                                                                      "NOTE: By default, tool assume that your lib are "
+                                                                      "sit in /system/lib, /system/lib64, /vendor/lib "
+                                                                      "and /vendor/lib64,you can also set the"
+                                                                      " LD_LIBRARY_PATH and ADSP_LIBRARY_PATH "
+                                                                      "environment variables to specify"
+                                                                      " some other directory that host the libs"),
                         required=False)
 
     args = parser.parse_args()

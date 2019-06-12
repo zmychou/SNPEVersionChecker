@@ -36,6 +36,9 @@ the tool will search all SNPE related file from the device.
 
 then show a new table.
 
+NOTE: By default, tool assume that your lib are sit in /system/lib, /system/lib64, /vendor/lib and /vendor/lib64, 
+you can also set the LD_LIBRARY_PATH and ADSP_LIBRARY_PATH to specify some other directory that host the libs
+
 SNPE version|	VARIANT|	path	|md5sum
 --|--|--|--
 snpe-1.26.0.343|	aarch64-android-clang6.0	|/system/lib/libSNPE_G.so	|xxxx
